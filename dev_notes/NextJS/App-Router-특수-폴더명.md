@@ -6,6 +6,7 @@ Next.js App Router에서는 특수한 기호를 사용하여 라우팅 기능을
 - **`@`**: Parallel Routes (병렬 라우트)
 - **`()`**: Route Groups (라우트 그룹)
 - **`(.)`, `(..)`, `(...)`**: Intercepting Routes (인터셉팅 라우트)
+- **`[]`**: Dynamic Routes (동적 라우트)
 
 ---
 
@@ -227,6 +228,172 @@ export default function Layout({ children, modal }) {
 
 ---
 
+## 4. `[]` - Dynamic Routes (동적 라우트)
+
+### 개념
+**런타임에 결정되는 동적인 URL 세그먼트**를 처리하는 기능입니다. URL 파라미터를 받아서 페이지에서 사용할 수 있습니다.
+
+### 종류
+
+#### 1) `[slug]` - 단일 동적 세그먼트
+하나의 동적 세그먼트를 매칭합니다.
+
+```
+app/
+└── blog/
+    └── [slug]/
+        └── page.js    → /blog/:slug
+```
+
+**예시:**
+- `/blog/my-first-post` → `params.slug = "my-first-post"`
+- `/blog/hello-world` → `params.slug = "hello-world"`
+
+```jsx
+// app/blog/[slug]/page.js
+export default function BlogPost({ params }) {
+  return <h1>Post: {params.slug}</h1>
+}
+```
+
+#### 2) `[...slug]` - Catch-all Routes
+여러 세그먼트를 배열로 캡처합니다. **반드시 하나 이상의 세그먼트가 필요**합니다.
+
+```
+app/
+└── docs/
+    └── [...slug]/
+        └── page.js    → /docs/* (모든 경로)
+```
+
+**예시:**
+- `/docs/a` → `params.slug = ["a"]`
+- `/docs/a/b` → `params.slug = ["a", "b"]`
+- `/docs/a/b/c` → `params.slug = ["a", "b", "c"]`
+- `/docs` → ❌ 매칭 안 됨 (세그먼트 필요)
+
+```jsx
+// app/docs/[...slug]/page.js
+export default function DocsPage({ params }) {
+  const path = params.slug?.join('/') || ''
+  return <h1>Docs: {path}</h1>
+}
+```
+
+#### 3) `[[...slug]]` - Optional Catch-all Routes
+여러 세그먼트를 배열로 캡처하지만, **세그먼트가 없어도 매칭**됩니다.
+
+```
+app/
+└── shop/
+    └── [[...slug]]/
+        └── page.js    → /shop, /shop/* (모든 경로)
+```
+
+**예시:**
+- `/shop` → `params.slug = undefined` 또는 `[]`
+- `/shop/category` → `params.slug = ["category"]`
+- `/shop/category/product` → `params.slug = ["category", "product"]`
+
+```jsx
+// app/shop/[[...slug]]/page.js
+export default function ShopPage({ params }) {
+  if (!params.slug || params.slug.length === 0) {
+    return <h1>Shop Home</h1>
+  }
+  return <h1>Shop: {params.slug.join('/')}</h1>
+}
+```
+
+### params 사용법
+
+#### Server Component에서
+```jsx
+// app/blog/[slug]/page.js
+export default async function BlogPost({ params }) {
+  const post = await fetch(`/api/posts/${params.slug}`)
+  const data = await post.json()
+  
+  return (
+    <article>
+      <h1>{data.title}</h1>
+      <p>{data.content}</p>
+    </article>
+  )
+}
+```
+
+#### generateStaticParams (정적 생성)
+빌드 타임에 미리 생성할 경로를 지정합니다.
+
+```jsx
+// app/blog/[slug]/page.js
+export async function generateStaticParams() {
+  const posts = await fetch('https://api.example.com/posts').then(res => res.json())
+  
+  return posts.map((post) => ({
+    slug: post.slug,
+  }))
+}
+
+export default function BlogPost({ params }) {
+  return <h1>{params.slug}</h1>
+}
+```
+
+#### generateMetadata (동적 메타데이터)
+```jsx
+// app/blog/[slug]/page.js
+export async function generateMetadata({ params }) {
+  const post = await fetch(`/api/posts/${params.slug}`).then(res => res.json())
+  
+  return {
+    title: post.title,
+    description: post.description,
+  }
+}
+```
+
+### 다중 동적 세그먼트
+여러 동적 세그먼트를 조합할 수 있습니다.
+
+```
+app/
+└── [category]/
+    └── [id]/
+        └── page.js    → /:category/:id
+```
+
+```jsx
+// app/[category]/[id]/page.js
+export default function ProductPage({ params }) {
+  return (
+    <div>
+      <h1>Category: {params.category}</h1>
+      <h2>ID: {params.id}</h2>
+    </div>
+  )
+}
+```
+
+**예시:**
+- `/electronics/123` → `params.category = "electronics"`, `params.id = "123"`
+
+### 특징
+- **URL에 포함됨**: `[slug]`는 실제 URL 경로의 일부
+- **타입 안전성**: TypeScript 사용 시 `params` 타입 추론
+- **정적 생성 지원**: `generateStaticParams`로 빌드 타임 생성 가능
+- **서버 컴포넌트 기본**: 동적 라우트는 기본적으로 서버 컴포넌트
+
+### 사용 사례
+- 블로그 포스트: `/blog/[slug]`
+- 제품 상세: `/products/[id]`
+- 사용자 프로필: `/users/[username]`
+- 문서 시스템: `/docs/[...slug]`
+- 파일 시스템 라우팅: `/files/[[...path]]`
+
+---
+
 ## 비교표
 
 | 기호 | 이름 | URL 영향 | 용도 |
@@ -236,6 +403,9 @@ export default function Layout({ children, modal }) {
 | `(.)folder` | Intercepting Routes | 없음 | 같은 레벨 라우트 모달/오버레이 |
 | `(..)folder` | Intercepting Routes | 없음 | 상위 레벨 라우트 모달/오버레이 |
 | `(...)folder` | Intercepting Routes | 없음 | 루트 레벨 라우트 모달/오버레이 |
+| `[slug]` | Dynamic Routes | 포함됨 | 단일 동적 세그먼트 |
+| `[...slug]` | Catch-all Routes | 포함됨 | 여러 세그먼트 배열로 캡처 (필수) |
+| `[[...slug]]` | Optional Catch-all | 포함됨 | 여러 세그먼트 배열로 캡처 (선택) |
 
 ---
 
@@ -253,7 +423,16 @@ export default function Layout({ children, modal }) {
    - 직접 URL 접근 시 인터셉트 안 됨
    - `<Link>` 컴포넌트 사용 시에만 동작
 
-4. **모든 특수 폴더는 URL 세그먼트가 아님**
-   - 실제 URL 경로에 포함되지 않음
+4. **Dynamic Routes는 URL 세그먼트가 됨**
+   - `[slug]`는 실제 URL 경로에 포함됨
+   - `/blog/[slug]` → `/blog/my-post` (URL)
+   - `params` 객체를 통해 값에 접근
+
+5. **Catch-all vs Optional Catch-all**
+   - `[...slug]`: 최소 1개 세그먼트 필요 (`/docs` → ❌)
+   - `[[...slug]]`: 세그먼트 없어도 됨 (`/shop` → ✅)
+
+6. **모든 특수 폴더는 URL 세그먼트가 아님** (Dynamic Routes 제외)
+   - `@`, `()`, `(.)` 등은 실제 URL 경로에 포함되지 않음
    - 라우팅 로직에만 영향을 줌
 
