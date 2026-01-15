@@ -50,61 +50,142 @@ shared/       # 공통 재사용 코드
 
 ### 2.1 app/ (애플리케이션 레이어)
 
-**역할**: 애플리케이션의 초기화, 전역 설정, 프로바이더 설정
+**역할**: 애플리케이션의 초기화, 전역 설정, 프로바이더 설정 (앱의 “뼈대”)
 
 **포함 내용**:
-- `providers/`: React Context, Redux Provider 등
+- `providers/`: React Context, 상태관리 Provider, 테마 Provider 등
 - `styles/`: 전역 스타일
 - `assets/`: 전역 이미지, 폰트 등
 - `config/`: 환경 변수, 설정 파일
-- `lib/`: 전역 유틸리티
+- `lib/`: 전역 유틸리티 (라우터 helpers 등)
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-app/
-  providers/
-    theme-provider.tsx
-    store-provider.tsx
-  styles/
-    globals.css
-  assets/
-    fonts/
-    images/
-  config/
-    env.ts
-  lib/
-    router.ts
+src/
+  app/                      # FSD app 레이어
+    providers/
+      theme-provider.tsx
+      store-provider.tsx
+    styles/
+      globals.css
+    config/
+      env.ts
+    lib/
+      router.ts
+
+app/                        # Next.js App Router
+  layout.tsx
+  page.tsx
 ```
+
+`app/layout.tsx` (Next.js 라우트 루트)에서 FSD `app` 레이어의 provider 들을 감싸서 사용합니다:
+
+```tsx
+// app/layout.tsx (Next.js)
+import { ThemeProvider } from '@/app/providers/theme-provider';
+import { StoreProvider } from '@/app/providers/store-provider';
+import '@/app/styles/globals.css';
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="ko">
+      <body>
+        <ThemeProvider>
+          <StoreProvider>
+            {children}
+          </StoreProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+여기서:
+- `ThemeProvider`, `StoreProvider`, `globals.css` → **app 레이어**
+- `RootLayout` 자체 → Next.js 라우팅용이지만, 내부에서 **다른 레이어(entities, features …)** 를 직접 사용하지 않고, **전역 설정만 담당**합니다.
 
 **규칙**:
 - 다른 레이어에 의존하지 않음
-- 전역 설정만 포함
-- 비즈니스 로직 포함 금지
+- 전역 설정, Provider, 글로벌 스타일만 포함
+- 비즈니스 도메인 로직 포함 금지
 
 ---
 
 ### 2.2 processes/ (프로세스 레이어) - 선택적
 
-**역할**: 여러 페이지/위젯에 걸친 복잡한 비즈니스 프로세스
+**역할**: 여러 페이지/위젯/기능을 엮어서 “끝까지 이어지는” 복잡한 비즈니스 프로세스를 구성하는 레이어  
+예: 온보딩, 주문/결제 플로우, 대출 신청 플로우 등
 
 **포함 내용**:
-- 여러 기능을 조합한 복잡한 워크플로우
-- 예: 온보딩 프로세스, 체크아웃 프로세스
+- 여러 레이어(entities, features, widgets)를 조합한 복합 워크플로우
+- 프로세스 전용 상태, 유효성 검사, 단계 전환 로직 등
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-processes/
-  onboarding/
-    ui/
-      onboarding-flow.tsx
-    model/
-      onboarding-store.ts
-  checkout/
-    ui/
-      checkout-process.tsx
-    model/
-      checkout-store.ts
+src/
+  processes/
+    checkout/
+      ui/
+        checkout-flow.tsx
+      model/
+        checkout-store.ts
+
+  features/
+    add-to-cart/
+      ui/
+        add-to-cart-button.tsx
+      model/
+        add-to-cart-store.ts
+
+  entities/
+    order/
+      ui/
+        order-summary.tsx
+      model/
+        order-types.ts
 ```
+
+`checkout-flow.tsx` 에서는 **features, entities, widgets** 를 조합해 “결제 플로우”를 완성합니다:
+
+```tsx
+// src/processes/checkout/ui/checkout-flow.tsx
+'use client';
+
+import { AddToCartButton } from '@/features/add-to-cart/ui/add-to-cart-button';
+import { OrderSummary } from '@/entities/order/ui/order-summary';
+import { useCheckoutStore } from '../model/checkout-store';
+
+export function CheckoutFlow() {
+  const { step, goNext, goPrev } = useCheckoutStore();
+
+  if (step === 'cart') {
+    return (
+      <>
+        <OrderSummary />
+        <AddToCartButton />
+        <button onClick={goNext}>결제하기</button>
+      </>
+    );
+  }
+
+  if (step === 'payment') {
+    return (
+      <>
+        {/* 결제 정보 입력 폼 (feature) */}
+        <button onClick={goPrev}>장바구니로 돌아가기</button>
+      </>
+    );
+  }
+
+  return <div>주문이 완료되었습니다.</div>;
+}
+```
+
+여기서:
+- `CheckoutFlow` → **processes 레이어 (복합 워크플로우)**
+- 내부에서 사용하는 `OrderSummary` → **entities 레이어**
+- `AddToCartButton` → **features 레이어**
 
 **규칙**:
 - `pages`, `widgets`, `features`, `entities`, `shared`에 의존 가능
@@ -114,198 +195,496 @@ processes/
 
 ### 2.3 pages/ (페이지 레이어)
 
-**역할**: 라우트별 페이지 컴포넌트, 라우팅 구성
+**역할**: 라우트별 “페이지 컴포넌트”를 정의하는 레이어로,  
+**widgets / features / entities** 를 조합해서 실제 페이지 UI를 완성합니다.
 
 **포함 내용**:
-- Next.js의 `page.tsx` 파일들
-- 페이지별 레이아웃
-- 라우트 구성
+- Next.js `app/` 디렉토리에서 사용할 “페이지 UI” 컴포넌트
+- 페이지별 레이아웃 조합 (헤더, 사이드바 등)
+- 비즈니스 로직 최소화, 조합 역할에 집중
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-pages/
-  home/
-    ui/
-      home-page.tsx
-  products/
-    ui/
-      products-page.tsx
-  products/
-    [id]/
+src/
+  pages/
+    home/
       ui/
-        product-detail-page.tsx
+        home-page.tsx
+    products/
+      ui/
+        products-page.tsx
+      [id]/
+        ui/
+          product-detail-page.tsx
+
+src/
+  widgets/
+    header/
+      ui/
+        header.tsx
+
+src/
+  entities/
+    product/
+      ui/
+        product-card.tsx
+
+src/
+  features/
+    add-to-cart/
+      ui/
+        add-to-cart-button.tsx
 ```
+
+`src/pages/products/ui/products-page.tsx` 에서 위젯/엔티티/기능을 조합합니다:
+
+```tsx
+// src/pages/products/ui/products-page.tsx
+'use client';
+
+import { Header } from '@/widgets/header/ui/header';
+import { ProductCard } from '@/entities/product/ui/product-card';
+import { AddToCartButton } from '@/features/add-to-cart/ui/add-to-cart-button';
+
+const MOCK_PRODUCTS = [
+  { id: 'p1', name: '맛있는 버거', price: 12000 },
+  { id: 'p2', name: '고소한 파스타', price: 14000 },
+];
+
+export function ProductsPage() {
+  return (
+    <>
+      <Header />
+      <main>
+        <h1>상품 목록</h1>
+        <ul>
+          {MOCK_PRODUCTS.map((product) => (
+            <li key={product.id}>
+              <ProductCard
+                product={product}
+                actions={<AddToCartButton productId={product.id} />}
+              />
+            </li>
+          ))}
+        </ul>
+      </main>
+    </>
+  );
+}
+```
+
+그리고 Next.js 라우트 `app/(routes)/products/page.tsx` 에서는 단순히 이 페이지를 렌더링합니다:
+
+```tsx
+// app/(routes)/products/page.tsx
+import { ProductsPage } from '@/pages/products/ui/products-page';
+
+export default function Page() {
+  return <ProductsPage />;
+}
+```
+
+여기서:
+- `ProductsPage` → **pages 레이어**
+- `Header` → **widgets 레이어**
+- `ProductCard` → **entities 레이어**
+- `AddToCartButton` → **features 레이어**
 
 **규칙**:
 - `widgets`, `features`, `entities`, `shared`에 의존 가능
 - 다른 페이지에 의존하지 않음
-- 비즈니스 로직은 포함하지 않고 위젯/기능을 조합만 함
+- 비즈니스 로직은 최대한 배제하고, **조합/배치 역할**에 집중
 
 ---
 
 ### 2.4 widgets/ (위젯 레이어)
 
-**역할**: 독립적인 UI 블록, 여러 기능을 조합한 복합 컴포넌트
+**역할**: 독립적인 UI 블록을 정의하는 레이어로,  
+**여러 features / entities 를 묶어 재사용 가능한 UI 덩어리**를 만듭니다. (예: 헤더, 사이드바, 대시보드 카드 섹션 등)
 
 **포함 내용**:
-- 헤더, 사이드바, 카드 등 독립적인 UI 블록
-- 여러 기능을 조합한 복합 컴포넌트
+- 페이지 여러 곳에서 재사용되는 복합 UI
+- UI와 약간의 상태(토글, 열림/닫힘 등) 정도의 로직
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-widgets/
-  header/
-    ui/
-      header.tsx
-    model/
-      header-store.ts
-  product-card/
-    ui/
-      product-card.tsx
-  sidebar/
-    ui/
-      sidebar.tsx
+src/
+  widgets/
+    header/
+      ui/
+        header.tsx
+      model/
+        header-store.ts
+    product-section/
+      ui/
+        product-section.tsx
+
+  features/
+    user-auth/
+      ui/
+        user-menu.tsx
+
+  entities/
+    product/
+      ui/
+        product-card.tsx
 ```
+
+`src/widgets/header/ui/header.tsx` 에서는 인증 관련 feature와 메뉴 등을 조합합니다:
+
+```tsx
+// src/widgets/header/ui/header.tsx
+'use client';
+
+import Link from 'next/link';
+import { UserMenu } from '@/features/user-auth/ui/user-menu';
+
+export function Header() {
+  return (
+    <header className="header">
+      <Link href="/">Foodies</Link>
+      <nav>
+        <Link href="/meals">Meals</Link>
+        <Link href="/community">Community</Link>
+      </nav>
+      <UserMenu />
+    </header>
+  );
+}
+```
+
+`src/widgets/product-section/ui/product-section.tsx` 에서는 엔티티 UI를 묶어 섹션을 구성합니다:
+
+```tsx
+// src/widgets/product-section/ui/product-section.tsx
+import { ProductCard } from '@/entities/product/ui/product-card';
+import { AddToCartButton } from '@/features/add-to-cart/ui/add-to-cart-button';
+
+export function ProductSection({ products }) {
+  return (
+    <section>
+      <h2>인기 메뉴</h2>
+      <div className="grid">
+        {products.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            actions={<AddToCartButton productId={product.id} />}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+여기서:
+- `Header`, `ProductSection` → **widgets 레이어**
+- `UserMenu` → **features 레이어**
+- `ProductCard` → **entities 레이어**
 
 **규칙**:
 - `features`, `entities`, `shared`에 의존 가능
 - 다른 위젯에 의존하지 않음
-- 독립적으로 동작 가능해야 함
+- 페이지와 독립적으로 재사용 가능한 UI 블록이어야 함
 
 ---
 
 ### 2.5 features/ (기능 레이어)
 
-**역할**: 사용자 기능, 인터랙션
+**역할**: “사용자 액션”과 직접적으로 연결된 기능(인터랙션)을 담당하는 레이어  
+예: 장바구니 담기, 좋아요, 댓글 작성, 검색, 로그인 등
 
 **포함 내용**:
-- 사용자가 수행하는 특정 액션
-- 예: 좋아요, 댓글 작성, 검색 등
+- 특정 액션을 처리하는 UI + 상태 + API 호출
+- 해당 액션을 위한 hooks, stores, validation 등
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-features/
-  add-to-cart/
+src/
+  features/
+    add-to-cart/
+      ui/
+        add-to-cart-button.tsx
+      model/
+        add-to-cart-store.ts
+      api/
+        add-to-cart-api.ts
+
+    product-search/
+      ui/
+        search-input.tsx
+      model/
+        search-store.ts
+
+  entities/
+    product/
+      model/
+        product-types.ts
+
+  shared/
     ui/
-      add-to-cart-button.tsx
-    model/
-      add-to-cart-store.ts
-    api/
-      add-to-cart-api.ts
-  product-search/
-    ui/
-      search-input.tsx
-    model/
-      search-store.ts
-    api/
-      search-api.ts
-  user-auth/
-    ui/
-      login-form.tsx
-      signup-form.tsx
-    model/
-      auth-store.ts
-    api/
-      auth-api.ts
+      button/
+        button.tsx
 ```
+
+`add-to-cart` 기능은 다음처럼 구성됩니다:
+
+```tsx
+// src/features/add-to-cart/api/add-to-cart-api.ts
+export async function addToCartRequest(productId: string) {
+  const res = await fetch('/api/cart', {
+    method: 'POST',
+    body: JSON.stringify({ productId }),
+  });
+  if (!res.ok) throw new Error('장바구니 추가 실패');
+  return res.json();
+}
+```
+
+```tsx
+// src/features/add-to-cart/model/add-to-cart-store.ts
+'use client';
+
+import { useState } from 'react';
+import { addToCartRequest } from '../api/add-to-cart-api';
+
+export function useAddToCart() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function addToCart(productId: string) {
+    setIsLoading(true);
+    try {
+      await addToCartRequest(productId);
+      // TODO: 장바구니 상태 업데이트 (entities/cart 등)
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return { addToCart, isLoading };
+}
+```
+
+```tsx
+// src/features/add-to-cart/ui/add-to-cart-button.tsx
+'use client';
+
+import { useAddToCart } from '../model/use-add-to-cart';
+import { Button } from '@/shared/ui/button/button';
+
+export function AddToCartButton({ productId }: { productId: string }) {
+  const { addToCart, isLoading } = useAddToCart();
+
+  return (
+    <Button onClick={() => addToCart(productId)} disabled={isLoading}>
+      {isLoading ? '담는 중...' : '장바구니 담기'}
+    </Button>
+  );
+}
+```
+
+여기서:
+- API 호출(`addToCartRequest`) → **features/api 세그먼트**
+- 훅/상태(`useAddToCart`) → **features/model 세그먼트**
+- UI(`AddToCartButton`) → **features/ui 세그먼트**
 
 **규칙**:
 - `entities`, `shared`에 의존 가능
-- 다른 기능에 의존하지 않음
-- 하나의 명확한 사용자 액션을 담당
+- 다른 feature 에 직접 의존하지 않음
+- 하나의 **명확한 사용자 액션**을 담당해야 함
 
 ---
 
 ### 2.6 entities/ (엔티티 레이어)
 
-**역할**: 비즈니스 엔티티, 도메인 모델
+**역할**: 비즈니스 도메인의 “명사형” 개념들을 표현하는 레이어  
+예: User, Product, Order, Meal 등
 
 **포함 내용**:
-- 비즈니스 도메인의 핵심 개념
-- 예: User, Product, Order 등
+- 특정 엔티티에 대한 타입, 스토어, API, UI 조각
+- 도메인 규칙, 도메인 중심 상태
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-entities/
-  user/
+src/
+  entities/
+    meal/
+      ui/
+        meal-item.tsx
+        meal-image.tsx
+      model/
+        meal-types.ts
+        meal-store.ts
+      api/
+        meal-api.ts
+
+    user/
+      ui/
+        user-avatar.tsx
+      model/
+        user-types.ts
+
+  shared/
     ui/
-      user-avatar.tsx
-      user-card.tsx
-    model/
-      user-store.ts
-      user-types.ts
-    api/
-      user-api.ts
-  product/
-    ui/
-      product-image.tsx
-      product-title.tsx
-    model/
-      product-store.ts
-      product-types.ts
-    api/
-      product-api.ts
-  cart/
-    ui/
-      cart-item.tsx
-    model/
-      cart-store.ts
-      cart-types.ts
+      button/
+        button.tsx
+```
+
+Foodies 예시 기준으로 `Meal` 엔티티를 구성해보면:
+
+```tsx
+// src/entities/meal/model/meal-types.ts
+export type Meal = {
+  id: string;
+  title: string;
+  image: string;
+  summary: string;
+};
+```
+
+```tsx
+// src/entities/meal/ui/meal-item.tsx
+import Image from 'next/image';
+import Link from 'next/link';
+import type { Meal } from '../model/meal-types';
+
+export function MealItem({ meal }: { meal: Meal }) {
+  return (
+    <article>
+      <Link href={`/meals/${meal.id}`}>
+        <Image src={meal.image} alt={meal.title} width={300} height={200} />
+        <h3>{meal.title}</h3>
+        <p>{meal.summary}</p>
+      </Link>
+    </article>
+  );
+}
+```
+
+```tsx
+// src/entities/meal/api/meal-api.ts
+export async function getMeals() {
+  const res = await fetch('/api/meals');
+  return res.json();
+}
+```
+
+이 엔티티는 widgets/pages/features 에서 재사용됩니다. 예를 들어:
+
+```tsx
+// src/widgets/meals-grid/ui/meals-grid.tsx
+import { MealItem } from '@/entities/meal/ui/meal-item';
+import type { Meal } from '@/entities/meal/model/meal-types';
+
+export function MealsGrid({ meals }: { meals: Meal[] }) {
+  return (
+    <ul className="meals-grid">
+      {meals.map((meal) => (
+        <li key={meal.id}>
+          <MealItem meal={meal} />
+        </li>
+      ))}
+    </ul>
+  );
+}
 ```
 
 **규칙**:
 - `shared`에만 의존 가능
 - 다른 엔티티에 의존하지 않음
-- 비즈니스 도메인 모델 정의
+- **비즈니스 도메인 모델**과 그 표현을 책임짐
 
 ---
 
 ### 2.7 shared/ (공유 레이어)
 
-**역할**: 공통 재사용 코드, 유틸리티
+**역할**: 어떤 비즈니스 도메인에도 속하지 않는 **완전히 범용적인 재사용 코드**를 모아두는 레이어  
+예: Button, Input, Modal, 공통 훅, 유틸 함수 등
 
 **포함 내용**:
-- UI 컴포넌트 (Button, Input 등)
-- 유틸리티 함수
-- 타입 정의
-- 상수
+- 공통 UI 컴포넌트 (Button, Input, Modal 등)
+- 유틸리티 함수, 공통 훅
+- 공통 타입, 상수, API 클라이언트
 
-**예시 구조**:
+**예시 디렉토리 구조 & 코드 흐름**:
 ```
-shared/
-  ui/
-    button/
-      button.tsx
-      button.module.css
-    input/
-      input.tsx
-      input.module.css
-    modal/
-      modal.tsx
-  lib/
-    utils/
-      format-date.ts
-      format-price.ts
-    hooks/
-      use-debounce.ts
-      use-local-storage.ts
-  api/
-    api-client.ts
-    api-types.ts
-  config/
-    constants.ts
-  types/
-    common-types.ts
+src/
+  shared/
+    ui/
+      button/
+        button.tsx
+        button.module.css
+      input/
+        input.tsx
+        input.module.css
+    lib/
+      utils/
+        format-date.ts
+        format-price.ts
+      hooks/
+        use-debounce.ts
+        use-local-storage.ts
+    api/
+      api-client.ts
+    config/
+      constants.ts
+    types/
+      common-types.ts
+```
+
+예를 들어 `Button` 컴포넌트는 어떤 레이어에서도 사용할 수 있습니다:
+
+```tsx
+// src/shared/ui/button/button.tsx
+import styles from './button.module.css';
+
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary';
+};
+
+export function Button({ variant = 'primary', className, ...props }: ButtonProps) {
+  const classNames = [styles.button, styles[variant], className]
+    .filter(Boolean)
+    .join(' ');
+
+  return <button className={classNames} {...props} />;
+}
+```
+
+이 `Button` 은 다음과 같이 여러 레이어에서 재사용됩니다:
+
+```tsx
+// src/features/add-to-cart/ui/add-to-cart-button.tsx  (features 레이어)
+import { Button } from '@/shared/ui/button/button';
+```
+
+```tsx
+// src/pages/home/ui/home-page.tsx  (pages 레이어)
+import { Button } from '@/shared/ui/button/button';
 ```
 
 **규칙**:
-- 다른 레이어에 의존하지 않음
-- 완전히 독립적이고 재사용 가능
-- 비즈니스 로직 포함 금지
+- 다른 어떤 레이어에도 의존하지 않음
+- 완전히 독립적이고 재사용 가능해야 함
+- 비즈니스 도메인에 대한 지식(로직) 포함 금지
 
 ---
 
 ## 3. 세그먼트 (Segments)
+
+레이어는 “수직적인 구조(어떤 역할을 맡는지)”를 정의한다면,  
+**세그먼트는 “수평적인 구조(한 슬라이스 안에서 코드가 어떻게 나뉘는지)”** 를 정의합니다.
+
+하나의 슬라이스(예: `features/add-to-cart`, `entities/meal`) 안에는 보통 다음과 같은 세그먼트가 함께 존재합니다:
+
+- `ui/`: 화면에 보이는 부분 (컴포넌트)
+- `model/`: 상태, 비즈니스 로직, 타입
+- `api/`: 서버와 통신하는 함수
+- `lib/`: 순수 유틸리티/헬퍼
+
+즉, **“어떤 코드가 어느 레이어에 들어가는지”는 레이어가 결정하고,  
+“그 레이어 내부에서 코드가 어떻게 나뉘는지”는 세그먼트가 결정**한다고 볼 수 있습니다.
 
 각 슬라이스는 내부적으로 세그먼트로 구성됩니다:
 
@@ -902,45 +1281,8 @@ src/
 
 ---
 
-## 7. 마이그레이션 가이드
 
-### 7.1 단계별 마이그레이션
-
-1. **shared 레이어 구축**
-   - 공통 UI 컴포넌트 이동
-   - 유틸리티 함수 이동
-
-2. **entities 레이어 구축**
-   - 도메인 모델 식별
-   - 관련 컴포넌트와 로직 그룹화
-
-3. **features 레이어 구축**
-   - 사용자 기능 식별
-   - 기능별로 코드 그룹화
-
-4. **widgets 레이어 구축**
-   - 복합 UI 블록 식별
-   - 위젯으로 추출
-
-5. **pages 레이어 구축**
-   - 페이지 컴포넌트 정리
-   - 위젯과 기능 조합
-
-### 7.2 점진적 적용
-
-전체를 한 번에 리팩토링하지 말고, 새로운 기능부터 FSD 구조로 개발:
-
-```
-기존 코드 (유지)
-  ↓
-새로운 기능은 FSD 구조로 개발
-  ↓
-기존 코드를 점진적으로 마이그레이션
-```
-
----
-
-## 8. 참고 자료
+## 7. 참고 자료
 
 - [Feature-Sliced Design 공식 문서](https://feature-sliced.design/)
 - [FSD GitHub](https://github.com/feature-sliced/documentation)
@@ -948,7 +1290,7 @@ src/
 
 ---
 
-## 9. 요약
+## 8. 요약
 
 ### FSD의 핵심 원칙
 
