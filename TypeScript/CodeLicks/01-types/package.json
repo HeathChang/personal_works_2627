@@ -1,0 +1,22 @@
+{
+  "name": "advanced-typescript",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@tsd/typescript": "^5.2.2",
+    "axios": "^1.5.1",
+    "vitest": "^0.34.6"
+  }
+}
