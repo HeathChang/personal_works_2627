@@ -20,3 +20,9 @@ updatePost(1, {
   title: "Bla!",
   author: "Someone",
 });
+
+// id is not in the type Omit<BlogPost, "id">
+updatePost(1, {
+  // @ts-expect-error
+  id: "Bla!",
+});

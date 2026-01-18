@@ -23,6 +23,7 @@ const forecasts: RegionalForecasts = {
     temperature: 10,
     precipitation: 40,
   },
+  // not allowed
   central: {
     temperature: 12,
     precipitation: 25,
