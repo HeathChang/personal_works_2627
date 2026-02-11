@@ -14,6 +14,7 @@ io.on('connect', (socket) => {
     /**
      * socket.emit is used to send a message to the client
      * socket.on is used to listen for a message from the client
+     * never add
      */
     socket.emit('messageFromServer', { data: 'Welcome to the socket.io server!' });
     socket.on('messageFromClient', (data) => { console.log(data); });

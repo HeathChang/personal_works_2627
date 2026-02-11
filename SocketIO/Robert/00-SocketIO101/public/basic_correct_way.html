@@ -1,0 +1,18 @@
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+    //socket.io.js is going to add the io object the global scope
+    const socket = io('http://localhost:8000');
+    console.log(socket);
+
+    // socket.on 안에 다른 socket.on을 추가하지말 것 .
+    socket.on('connect', () => {
+        console.log(socket.id)
+        socket.emit('messageFromClient', { data: "Hello, from the browser!" })
+    })
+    // socket.on: 특정 클라이언트(소켓)에서 발생한 커스텀 이벤트 수신
+    socket.on('messageFromServer', (data) => { console.log("Message from server::", data); })
+    // socket.io.on: 서버에서 발생한 이벤트 수신
+    socket.io.on('reconnect', () => { console.log("Reconnected to the server"); })
+
+</script>
