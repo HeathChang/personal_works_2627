@@ -66,10 +66,11 @@ The monorepo is organized with **applications** in `apps/` and **shared packages
 │  ├─ utils/               # Shared utilities and helpers
 │  ├─ config/              # Shared config (eslint, tsconfig, babel, etc.)
 │  └─ ...                  # other shared libraries
-├─ turbo.json              # Turborepo pipeline configuration
-├─ package.json            # Root package and scripts
-├─ pnpm-workspace.yaml     # pnpm workspace definition
-├─ pnpm-lock.yaml          # pnpm lockfile
+├─ .npmrc                   # pnpm config (e.g. node-linker=hoisted for CRA compatibility)
+├─ turbo.json               # Turborepo pipeline configuration
+├─ package.json             # Root package and scripts
+├─ pnpm-workspace.yaml      # pnpm workspace definition
+├─ pnpm-lock.yaml           # pnpm lockfile
 └─ .editorconfig / .gitignore / etc.
 ```
 
@@ -205,6 +206,9 @@ Typical implementation in root `package.json`:
 - **Behavior**
   - Runs the `dev` script in all apps that define it (commonly CRA: `react-scripts start`).
   - Uses `--parallel` so apps run concurrently (each on its own port).
+- **Ports**
+  - **web**: `http://localhost:3000` (default CRA port).
+  - **admin**: `http://localhost:3001` (set via `apps/admin/.env` with `PORT=3001` so both can run at once).
 
 ### 5.2 Starting a Single App
 
@@ -375,7 +379,17 @@ Root `package.json`:
 
 ## 7. pnpm Workspace Guide
 
-### 7.1 Workspace Linking
+### 7.1 `.npmrc` and `node-linker=hoisted`
+
+This repo uses **`node-linker=hoisted`** in the root `.npmrc`. That makes pnpm install dependencies in a **flat** `node_modules` (similar to npm), instead of the default isolated symlink layout.
+
+- **Why it’s needed**
+  - Create React App’s build (via `react-scripts`) uses **Workbox** for PWA support. The `workbox-build` package expects its dependency `@apideck/better-ajv-errors` to be resolvable from its own `node_modules`. With pnpm’s default strict isolation, that resolution can fail with `Cannot find module '@apideck/better-ajv-errors'`.
+  - Using `node-linker=hoisted` ensures all dependencies are hoisted so that CRA’s tooling can resolve them correctly.
+- **Trade-off**
+  - You lose pnpm’s default strict dependency isolation; the tree is flatter and some packages may see dependencies they wouldn’t under the default linker. For a CRA-based monorepo this is a common and accepted setup.
+
+### 7.2 Workspace Linking
 
 - **Local packages** are declared with `name` in `package.json` (e.g. `"@org/ui"`).
 - **Consumers** refer to them by name:
@@ -390,14 +404,14 @@ Root `package.json`:
 
 - pnpm **symlinks** local packages instead of fetching from the registry.
 
-### 7.2 Shared Dependencies
+### 7.3 Shared Dependencies
 
 - **Common dependencies** (React, TypeScript tooling, testing libs, etc.) can be hoisted to the **root** to:
   - Avoid duplication.
   - Ensure consistent versions across apps.
 - **App‑specific dependencies** (e.g. feature‑specific libraries) stay in the app’s `package.json`.
 
-### 7.3 Installing Dependencies (Root vs Package)
+### 7.4 Installing Dependencies (Root vs Package)
 
 - **Install a dependency used by many apps/packages** (root):
 
