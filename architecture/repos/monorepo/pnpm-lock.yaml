@@ -8,15 +8,10 @@ overrides:
   eslint: ^8.57.0
   eslint-webpack-plugin: ^4.2.0
 
-packageExtensionsChecksum: b7c3fd61e2b1627501d3a65f41b976ce
-
 importers:
 
   .:
     devDependencies:
-      '@apideck/better-ajv-errors':
-        specifier: 0.3.6
-        version: 0.3.6(ajv@8.18.0)
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
@@ -32,9 +27,6 @@ importers:
 
   apps/admin:
     dependencies:
-      '@apideck/better-ajv-errors':
-        specifier: 0.3.6
-        version: 0.3.6(ajv@8.18.0)
       '@org/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -53,9 +45,6 @@ importers:
 
   apps/web:
     dependencies:
-      '@apideck/better-ajv-errors':
-        specifier: 0.3.6
-        version: 0.3.6(ajv@8.18.0)
       '@org/ui':
         specifier: workspace:*
         version: link:../../packages/ui
