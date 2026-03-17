@@ -39,6 +39,10 @@ module.exports = {
     contentBase: path.resolve(__dirname, 'build'),
     compress: true,
     port: 8080,
+    // Avoid SockJS (which installs an `unload` handler) to prevent
+    // "[Violation] Permissions policy violation: unload is not allowed in this document."
+    // in restricted WebView/iframe environments.
+    transportMode: 'ws',
   },
   plugins: [
     new webpack.DefinePlugin({

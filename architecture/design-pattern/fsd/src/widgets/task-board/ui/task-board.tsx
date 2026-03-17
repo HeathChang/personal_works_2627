@@ -32,9 +32,9 @@ function useTaskBoardState() {
       prev.map((task) =>
         task.id === id
           ? {
-              ...task,
-              status: task.status === 'done' ? 'in-progress' : 'done'
-            }
+            ...task,
+            status: task.status === 'done' ? 'in-progress' : 'done'
+          }
           : task
       )
     );
