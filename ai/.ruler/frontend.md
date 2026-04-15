@@ -46,9 +46,9 @@
 
 | 상태 유형 | 도구 | 규칙 |
 |-----------|------|------|
-| **서버 상태** (API 데이터) | SWR | `fetch` 직접 사용 금지, SWR 캐싱 활용 |
+| **서버 상태** (API 데이터) | RTK Query | `fetch` 직접 사용 금지, RTK Query 캐싱 활용 |
 | **로컬 UI 상태** (모달, 토글) | useState / useReducer | 컴포넌트에 가장 가까운 곳에 선언 |
-| **공유 UI 상태** (테마, 인증) | Context 또는 상태 라이브러리 | 최소 범위의 Provider 사용 |
+| **공유 UI 상태** (테마, 인증) | Context | 최소 범위의 Provider 사용 |
 
 - 전역 상태에 모든 것을 올리는 행위는 **금지**한다.
 - UI 상태와 서버 상태를 같은 store에 혼합하지 않는다.
@@ -57,8 +57,8 @@
 
 ## 스타일 규칙
 
-- 스타일은 **styled-components로 통일**한다.
-- 디자인 토큰(색상, 간격, 폰트 크기, border-radius 등)은 `shared/constants/designTokens.ts`에서 import한다.
+- 스타일은 **Tailwind CSS로 통일**한다.
+- 디자인 토큰(색상, 간격, 폰트 크기, border-radius 등)은 CSS 변수(`app/styles/globals.css`)에 정의하고, `tailwind.config.js`를 통해 `text-text-main`, `bg-bg-card` 등의 유틸리티 클래스로 사용한다.
 - **하드코딩 절대 금지**: 색상값, 간격값, 폰트 크기를 직접 입력하지 않는다.
 
 ---
